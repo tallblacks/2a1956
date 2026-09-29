@@ -13,6 +13,14 @@
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		return new Response("42");
+		if (request.method === "GET") {
+			return new Response("read");
+		}
+
+		if (request.method === "POST") {
+			return new Response("write");
+		}
+
+		return new Response("method not supported", { status: 405 });
 	},
 } satisfies ExportedHandler<Env>;
