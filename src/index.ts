@@ -11,7 +11,6 @@ interface Artifact {
 }
 
 const PAGE_SIZE = 50;
-const REFERENCE_PREVIEW_SIZE = 3;
 const MAX_NAME_LENGTH = 256;
 const MAX_CONTENT_LENGTH = 64 * 1024;
 
@@ -43,81 +42,89 @@ async function readArtifacts(
 ): Promise<Response> {
   const cursor = url.searchParams.get("cursor");
 
-  let result;
-
-  if (cursor) {
-    result = await env.DB.prepare(
-      `SELECT id, name, content, reference, created_at
-       FROM artifacts
-       WHERE created_at < ?
-       ORDER BY created_at DESC
-       LIMIT ?`,
-    )
-      .bind(cursor, PAGE_SIZE + 1)
-      .all<Artifact>();
-  } else {
-    result = await env.DB.prepare(
-      `SELECT id, name, content, reference, created_at
-       FROM artifacts
-       ORDER BY created_at DESC
-       LIMIT ?`,
-    )
-      .bind(PAGE_SIZE + 1)
-      .all<Artifact>();
-  }
-
-  const artifacts = result.results.slice(0, PAGE_SIZE);
-
-  if (artifacts.length === 0) {
-    return Response.json({
-      artifacts: [],
-      next_cursor: null,
-    });
-  }
-
-  const ids = artifacts.map((artifact) => artifact.id);
-  const placeholders = ids.map(() => "?").join(", ");
-
-  const referencesResult = await env.DB.prepare(
+  // Read enough artifacts to determine the top-level page.
+  // We fetch all artifacts for now because the first experiment
+  // intentionally keeps the reference structure simple.
+  const result = await env.DB.prepare(
     `SELECT id, name, content, reference, created_at
      FROM artifacts
-     WHERE reference IN (${placeholders})
      ORDER BY created_at DESC`,
-  )
-    .bind(...ids)
-    .all<Artifact>();
+  ).all<Artifact>();
 
-  const referencesByArtifact = new Map<string, Artifact[]>();
+  const allArtifacts = result.results;
 
-  for (const artifact of referencesResult.results) {
-    if (!artifact.reference) {
+  const artifactIds = new Set(
+    allArtifacts.map((artifact) => artifact.id),
+  );
+
+  // An artifact is top-level when its reference is empty
+  // or does not point to an existing artifact.
+  const topLevel = allArtifacts.filter(
+    (artifact) =>
+      !artifact.reference ||
+      !artifactIds.has(artifact.reference),
+  );
+
+  // Top-level pagination.
+  let startIndex = 0;
+
+  if (cursor) {
+    const cursorIndex = topLevel.findIndex(
+      (artifact) => artifact.created_at === cursor,
+    );
+
+    if (cursorIndex >= 0) {
+      startIndex = cursorIndex + 1;
+    }
+  }
+
+  const page = topLevel.slice(
+    startIndex,
+    startIndex + PAGE_SIZE,
+  );
+
+  const childrenByReference = new Map<string, Artifact[]>();
+
+  for (const artifact of allArtifacts) {
+    if (!artifact.reference || !artifactIds.has(artifact.reference)) {
       continue;
     }
 
-    const list = referencesByArtifact.get(artifact.reference) ?? [];
-    list.push(artifact);
-    referencesByArtifact.set(artifact.reference, list);
+    const children =
+      childrenByReference.get(artifact.reference) ?? [];
+
+    children.push(artifact);
+    childrenByReference.set(artifact.reference, children);
   }
 
-  const output = artifacts.map((artifact) => {
-    const references = referencesByArtifact.get(artifact.id) ?? [];
+  for (const children of childrenByReference.values()) {
+    children.sort(
+      (a, b) =>
+        b.created_at.localeCompare(a.created_at),
+    );
+  }
+
+  function buildTree(artifact: Artifact): object {
+    const children =
+      childrenByReference.get(artifact.id) ?? [];
 
     return {
       ...artifact,
-      references: references.slice(0, REFERENCE_PREVIEW_SIZE),
-      more: references.length > REFERENCE_PREVIEW_SIZE,
+      references: children.map(buildTree),
     };
-  });
+  }
 
-  const hasMore = result.results.length > PAGE_SIZE;
+  const artifacts = page.map(buildTree);
+
+  const hasMore = startIndex + PAGE_SIZE < topLevel.length;
 
   const nextCursor =
-    hasMore && artifacts.length > 0
-      ? artifacts[artifacts.length - 1].created_at
+    hasMore && page.length > 0
+      ? page[page.length - 1].created_at
       : null;
 
   return Response.json({
-    artifacts: output,
+    artifacts,
     next_cursor: nextCursor,
   });
 }
