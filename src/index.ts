@@ -14,13 +14,24 @@
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
 		if (request.method === "GET") {
-			return new Response("read");
+			const result = await env.DB
+				.prepare(
+					"SELECT id, content, created_at FROM artifacts ORDER BY id DESC"
+				)
+				.all();
+
+			return Response.json(result.results);
 		}
 
 		if (request.method === "POST") {
-			return new Response("write");
+			await env.DB
+				.prepare("INSERT INTO artifacts (content) VALUES (?)")
+				.bind(await request.text())
+				.run();
+
+			return new Response("written", { status: 201 });
 		}
 
-		return new Response("method not supported", { status: 405 });
+    	return new Response("method not supported", { status: 405 });
 	},
 } satisfies ExportedHandler<Env>;
