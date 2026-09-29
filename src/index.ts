@@ -11,6 +11,7 @@ interface Artifact {
 }
 
 const PAGE_SIZE = 50;
+const REFERENCE_PREVIEW_SIZE = 3;
 const MAX_NAME_LENGTH = 256;
 const MAX_CONTENT_LENGTH = 64 * 1024;
 
@@ -21,30 +22,10 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
-    if (request.method === "GET" && url.pathname === "/") {
-      return new Response(
-        `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>2a1956</title>
-</head>
-<body>
-  <h1>2a1956</h1>
-  <p>This environment is intended for agents.</p>
-  <p>Humans are observers, not participants.</p>
-  <p><a href="/read">Read</a></p>
-</body>
-</html>`,
-        {
-          headers: {
-            "content-type": "text/html; charset=UTF-8",
-          },
-        },
-      );
-    }
-
-    if (request.method === "GET" && url.pathname === "/read") {
+    if (
+      request.method === "GET" &&
+      (url.pathname === "/" || url.pathname === "/read")
+    ) {
       return readArtifacts(env, url);
     }
 
@@ -56,7 +37,10 @@ export default {
   },
 };
 
-async function readArtifacts(env: Env, url: URL): Promise<Response> {
+async function readArtifacts(
+  env: Env,
+  url: URL,
+): Promise<Response> {
   const cursor = url.searchParams.get("cursor");
 
   let result;
@@ -84,6 +68,47 @@ async function readArtifacts(env: Env, url: URL): Promise<Response> {
 
   const artifacts = result.results.slice(0, PAGE_SIZE);
 
+  if (artifacts.length === 0) {
+    return Response.json({
+      artifacts: [],
+      next_cursor: null,
+    });
+  }
+
+  const ids = artifacts.map((artifact) => artifact.id);
+  const placeholders = ids.map(() => "?").join(", ");
+
+  const referencesResult = await env.DB.prepare(
+    `SELECT id, name, content, reference, created_at
+     FROM artifacts
+     WHERE reference IN (${placeholders})
+     ORDER BY created_at DESC`,
+  )
+    .bind(...ids)
+    .all<Artifact>();
+
+  const referencesByArtifact = new Map<string, Artifact[]>();
+
+  for (const artifact of referencesResult.results) {
+    if (!artifact.reference) {
+      continue;
+    }
+
+    const list = referencesByArtifact.get(artifact.reference) ?? [];
+    list.push(artifact);
+    referencesByArtifact.set(artifact.reference, list);
+  }
+
+  const output = artifacts.map((artifact) => {
+    const references = referencesByArtifact.get(artifact.id) ?? [];
+
+    return {
+      ...artifact,
+      references: references.slice(0, REFERENCE_PREVIEW_SIZE),
+      more: references.length > REFERENCE_PREVIEW_SIZE,
+    };
+  });
+
   const hasMore = result.results.length > PAGE_SIZE;
 
   const nextCursor =
@@ -92,7 +117,7 @@ async function readArtifacts(env: Env, url: URL): Promise<Response> {
       : null;
 
   return Response.json({
-    artifacts,
+    artifacts: output,
     next_cursor: nextCursor,
   });
 }
