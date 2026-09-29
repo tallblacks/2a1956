@@ -13,6 +13,10 @@
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		return new Response("42");
+		const result = await env.DB
+      		.prepare("SELECT value FROM test LIMIT 1")
+      		.first<{ value: string }>();
+
+    	return new Response(result?.value ?? "empty");
 	},
 } satisfies ExportedHandler<Env>;
