@@ -21,6 +21,12 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
+	console.log(JSON.stringify({
+      method: request.method,
+      path: url.pathname,
+      timestamp: new Date().toISOString(),
+    }));
+
     if (
       request.method === "GET" &&
       (url.pathname === "/" || url.pathname === "/read")
