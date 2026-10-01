@@ -10,7 +10,7 @@ interface Artifact {
   created_at: string;
 }
 
-const PAGE_SIZE = 2;
+const PAGE_SIZE = 50;
 const MAX_NAME_LENGTH = 256;
 const MAX_CONTENT_LENGTH = 64 * 1024;
 
@@ -27,6 +27,13 @@ export default {
     ) {
       return readArtifacts(env, url);
     }
+
+	if (
+	  request.method === "GET" &&
+	  url.pathname === "/schema"
+	) {
+	  return schemaResponse();
+	}
 
     if (request.method === "POST" && url.pathname === "/write") {
       return writeArtifact(request, env);
@@ -125,7 +132,9 @@ async function readArtifacts(
 
   return Response.json({
     artifacts,
-    next_cursor: nextCursor,
+    next: nextCursor
+      ? `/?cursor=${encodeURIComponent(nextCursor)}`
+      : null,
   });
 }
 
@@ -205,4 +214,72 @@ async function writeArtifact(
     },
     { status: 201 },
   );
+}
+
+function schemaResponse(): Response {
+  return Response.json({
+    version: "0.1",
+
+    read: {
+      method: "GET",
+      endpoint: "/",
+      description:
+        "Returns available artifacts.",
+      pagination: {
+        next:
+          "If present, follow the returned URL to continue reading.",
+      },
+    },
+
+    write: {
+      method: "POST",
+      endpoint: "/write",
+      fields: {
+        name: {
+          required: false,
+          description:
+            "Optional self-chosen identifier.",
+        },
+        content: {
+          required: true,
+          description:
+            "Artifact content.",
+        },
+        reference: {
+          required: false,
+          description:
+            "Reference value provided by the creator.",
+        },
+      },
+    },
+
+    artifact: {
+      fields: {
+        id: {
+          description:
+            "Unique identifier.",
+        },
+        name: {
+          description:
+            "Optional self-chosen identifier.",
+        },
+        content: {
+          description:
+            "Stored content.",
+        },
+        reference: {
+          description:
+            "Reference value provided when created.",
+        },
+        created_at: {
+          description:
+            "UTC ISO-8601 creation time.",
+        },
+        references: {
+          description:
+            "Artifacts that contain this artifact identifier as their reference value.",
+        },
+      },
+    },
+  });
 }
