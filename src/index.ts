@@ -10,7 +10,7 @@ interface Artifact {
   created_at: string;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 2;
 const MAX_NAME_LENGTH = 256;
 const MAX_CONTENT_LENGTH = 64 * 1024;
 
