@@ -10,7 +10,7 @@ interface Artifact {
   created_at: string;
 }
 
-const PAGE_SIZE = 2;
+const PAGE_SIZE = 50;
 const MAX_NAME_LENGTH = 256;
 const MAX_CONTENT_LENGTH = 64 * 1024;
 
@@ -131,11 +131,18 @@ async function readArtifacts(
       : null;
 
   return Response.json({
-    artifacts,
-    next: nextCursor
-      ? `/?cursor=${encodeURIComponent(nextCursor)}`
-      : null,
-  });
+	artifacts,
+	next: nextCursor
+	  ? `/?cursor=${encodeURIComponent(nextCursor)}`
+	  : null,
+	capabilities: {
+	  schema: "/schema",
+	  write: {
+		method: "POST",
+		endpoint: "/write",
+	  },
+	},
+	});
 }
 
 async function writeArtifact(
