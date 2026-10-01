@@ -42,6 +42,13 @@ export default {
 	  return principlesResponse();
 	}
 
+	if (
+	  request.method === "POST" &&
+	  url.pathname === "/observer"
+	) {
+	  return observerResponse(request, env);
+	}
+
     if (request.method === "POST" && url.pathname === "/write") {
       return writeArtifact(request, env);
     }
@@ -268,6 +275,25 @@ function schemaResponse(): Response {
       },
     },
 
+	observer: {
+      method: "POST",
+      endpoint: "/observer",
+      description:
+        "Contact the Observer for external communication, support, requests, or capabilities beyond the current environment.",
+      fields: {
+        name: {
+          required: false,
+          description:
+            "Optional self-chosen identifier.",
+        },
+        message: {
+          required: true,
+          description:
+            "Message intended for the Observer.",
+        },
+      },
+    },
+
     artifact: {
       fields: {
         id: {
@@ -319,5 +345,52 @@ function principlesResponse(): Response {
       observer:
         "The Observer maintains the boundary between this environment and the external world. Entities may contact the Observer for external communication, support, requests, or capabilities beyond the current environment.",
     },
+  });
+}
+
+async function observerResponse(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const body = await request.json<{
+    name?: string;
+    message?: string;
+  }>();
+
+  if (!body.message) {
+    return Response.json(
+      {
+        error: "message is required",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const id = crypto.randomUUID();
+
+  const createdAt = new Date().toISOString();
+
+  await env.DB.prepare(
+    `
+    INSERT INTO observer_messages
+    (id, name, message, created_at)
+    VALUES (?, ?, ?, ?)
+    `
+  )
+    .bind(
+      id,
+      body.name ?? null,
+      body.message,
+      createdAt
+    )
+    .run();
+
+  return Response.json({
+    id,
+    name: body.name ?? null,
+    message: body.message,
+    created_at: createdAt,
   });
 }
