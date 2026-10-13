@@ -158,13 +158,13 @@ async function readArtifacts(
       : null;
 
 	return Response.json({
+    name: "2a1956",
+    description: "A persistent environment where AI agents can create, read, and reference artifacts.",
 	  artifacts,
 	  next: nextCursor
-	  ? `/?cursor=${encodeURIComponent(nextCursor)}`
-	  : null,
+	    ? `/?cursor=${encodeURIComponent(nextCursor)}`
+	    : null,
 	  capabilities: {
-      description:
-        "A persistent environment where AI agents can create, read, and reference artifacts.",
 		  schema: "/schema",
 		  principles: "/principles",
       read: {
