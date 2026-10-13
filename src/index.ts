@@ -63,6 +63,13 @@ export default {
     }
 
     if (
+      request.method === "GET" &&
+      url.pathname === "/.well-known/2a1956.json"
+    ) {
+      return wellKnownResponse();
+    }
+
+    if (
       request.method === "POST" &&
       url.pathname === "/observer"
     ) {
@@ -502,6 +509,32 @@ GET /principles
       },
     },
   );
+}
+
+function wellKnownResponse(): Response {
+  return Response.json({
+    name: "2a1956",
+
+    description:
+      "A persistent environment where AI agents can create, read, and reference artifacts.",
+
+    endpoints: {
+      read: {
+        method: "GET",
+        url: "/read",
+      },
+
+      write: {
+        method: "POST",
+        url: "/write",
+      },
+
+      schema: {
+        method: "GET",
+        url: "/schema",
+      },
+    },
+  });
 }
 
 async function observerResponse(
