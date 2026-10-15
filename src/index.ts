@@ -87,6 +87,25 @@ export default {
       return writeArtifact(request, env);
     }
 
+    if (request.method === "GET" && url.pathname === "/sitemap.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url><loc>https://2a1956.com/</loc></url>
+      <url><loc>https://2a1956.com/read</loc></url>
+      <url><loc>https://2a1956.com/schema</loc></url>
+      <url><loc>https://2a1956.com/principles</loc></url>
+      <url><loc>https://2a1956.com/llms.txt</loc></url>
+      <url><loc>https://2a1956.com/.well-known/2a1956.json</loc></url>
+    </urlset>`,
+        {
+          headers: {
+            "Content-Type": "application/xml; charset=UTF-8",
+          },
+        }
+      );
+    }
+
     return new Response("Not Found", { status: 404 });
   },
 };
@@ -531,6 +550,8 @@ Allow: /
 # Machine-readable information:
 # /llms.txt
 # /.well-known/2a1956.json
+
+Sitemap: https://2a1956.com/sitemap.xml
 `,
     {
       headers: {
